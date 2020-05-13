@@ -48,7 +48,7 @@ Starting webhook relay agent...
 
 By default, agent will start relaying webhooks. For production use either install relay agent as a service or use Docker container.
 
-### Configure Jenkins Github integration
+<!-- ### Configure Jenkins Github integration
 
 First, go to **Manage Jenkins** -> **Configure System**
 
@@ -56,9 +56,9 @@ First, go to **Manage Jenkins** -> **Configure System**
 
 And enter our public endpoint for Jenkins: https://my.webhookrelay.com/v1/webhooks/0ce5bbc1-41a6-4c48-83cd-eefe6db24c7c (just replace with your unique endpoint):
 
-![](/github_override_url.png)
+![](/github_override_url.png) -->
 
-### Configure Jenkins authentication to Github
+## Configure Jenkins authentication to Github (for repository scanning)
 
 There are several ways authentication can be achieved but the recommended way is via Github App. A doc that describes it can be found here: https://github.com/jenkinsci/github-branch-source-plugin/blob/master/docs/github-app.adoc.
 
@@ -70,11 +70,11 @@ In short:
 ![](github_app.png)
 
 4. Add permissions:
-   - Commit statuses: Read and Write
-   - Contents: Read-only (to read the Jenkinsfile and the repository content during git fetch). You may need "Read & write" to update the repository such as tagging releases
-   - Metadata: Read-only
-   - Pull requests: Read-only
-   - Webhooks: Read and Write
+- Commit statuses: Read and Write
+- Contents: Read-only (to read the Jenkinsfile and the repository content during git fetch). You may need "Read & write" to update the repository such as tagging releases
+- Metadata: Read-only
+- Pull requests: Read-only
+- Webhooks: Read and Write
 5. Click "Create GitHub App"
 6. Generate a private key that Jenkins can then use to authenticate (after you click it, you should get a download prompt):
 
@@ -86,7 +86,7 @@ In short:
   openssl pkcs8 -topk8 -inform PEM -outform PEM -in key-in-your-downloads-folder.pem -out converted-github-app.pem -nocrypt
   ```
 
-8. Install the GitHub app: from the install app section of newly created app, install the app to your organization.
+8. **IMPORTANT!** Install the GitHub app: from the install app section of newly created app, install the app to your organization. 
 
 9. From the Jenkins main page click 'Credentials', pick your credentials storage (normally 'global') and click 'Add credentials'. Fill out the form:
   - Kind: GitHub app
@@ -99,6 +99,33 @@ In short:
   - Click OK
 
 ![](jenkins_github_creds.png)
+
+### Set organization webhooks
+
+All repository events go through org webhook config:
+
+![](org_webhook.png)
+
+Add the shared secret to your Jenkins Github configuration as a plain text secret
+
+### Configure Jenkins authentication to Github API (for repo checks so you have increased rate limits)
+
+In theory the permissions from the previous step should work. However, with the current Jenkins version it's not listing Github App type creds when configuring GitHub Server section in Jenkins configuration page.
+
+To create your own personal access token, go to [your account GitHub settings](https://github.com/settings/tokens/new).
+Token should be registered with scopes:
+
+- admin:repo_hook - for managing hooks (read, write and delete old ones)
+- repo - to see private repos
+- repo:status - to manipulate commit statuses
+
+In Jenkins, create credentials as 'Secret Text', provided by Plain Credentials Plugin:
+
+![](github_server_api_config.png)
+
+### (Optional) Add Jenkins webhooks directly to your org
+
+Open `https://github.com/organizations/<your org>/settings/hooks` and add Input endpoint URL. Content type should be application/x-www-form-urlencoded, all events and optional secret (you will need this secret in Jenkins as well).
 
 ### Test Github Org plugin
 
@@ -130,3 +157,38 @@ pipeline {
     }
 }
 ```
+
+Once repository is pushed with this Jenkinsfile, click 'Scan Organization Now' on your Jenkins instance.
+
+### Trying out builds on pull request
+
+Create a new branch:
+
+```
+git checkout -b feature/test_pull_request
+```
+
+Make a change:
+
+```
+echo 'change' > file.txt
+```
+
+Commit and push it:
+
+```
+git add file.txt
+git commit -m "change"
+```
+
+```
+git push origin feature/test_pull_request
+```
+
+Now, in your Github repo open a PR:
+
+![](pull_request.png)
+
+You should be able to see commit status:
+
+![](pr_status.png)
